@@ -1,0 +1,605 @@
+<title>Spektra Pocket</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="spektrafilm's film simulation on your phone: expose, develop, print and scan any photo.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one-screen darkroom app. Photo on top, a print-tray control sheet below. */
+:root {
+  --bg: #12100e;          /* darkroom */
+  --surface: #1c1916;     /* tray */
+  --raised: #27231f;
+  --line: #3a342d;
+  --fg: #ece5d8;          /* fibre paper */
+  --muted: #a39a8b;
+  --accent: #e0a83c;      /* amber safelight */
+  --accent-ink: #1a1408;
+  --danger: #e4775f;
+  --font-body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --r: 10px;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px;
+  display: flex; flex-direction: column; overflow: hidden; -webkit-tap-highlight-color: transparent;
+}
+button, select, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.top {
+  display: flex; align-items: center; gap: 10px;
+  padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.brand { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.brand b { font-weight: 700; font-size: 17px; letter-spacing: -0.01em; }
+.brand small { font-family: var(--font-data); font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.btn {
+  border: 1px solid var(--line); background: var(--raised); border-radius: 999px; padding: 8px 14px;
+  font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+}
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn:disabled { opacity: 0.5; cursor: default; }
+.btn svg { width: 16px; height: 16px; }
+
+.viewer { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: #0b0a09; touch-action: none; user-select: none; -webkit-user-select: none; }
+.viewer canvas { max-width: 100%; max-height: 100%; display: block; image-rendering: auto; }
+.viewer.loupe canvas { image-rendering: pixelated; }
+.hud {
+  position: absolute; left: max(10px, env(safe-area-inset-left, 0px)); right: max(10px, env(safe-area-inset-right, 0px)); top: 10px; display: flex; gap: 6px; flex-wrap: wrap; pointer-events: none;
+}
+.tag {
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--font-data); font-size: 11px; background: rgba(18,16,14,0.78); color: var(--fg); border: 1px solid var(--line);
+  padding: 3px 7px; border-radius: 6px; font-variant-numeric: tabular-nums; backdrop-filter: blur(6px);
+}
+.tag.busy { color: var(--accent); }
+.viewer-tools { position: absolute; right: max(10px, env(safe-area-inset-right, 0px)); bottom: 10px; display: flex; gap: 6px; }
+.chip-btn { font-family: var(--font-data); font-size: 12px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: rgba(18,16,14,0.82); }
+.chip-btn[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.progress { position: absolute; left: 0; right: 0; top: 0; height: 2px; background: transparent; }
+.progress i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .15s; }
+
+.sheet > * { flex-shrink: 0; }
+.sheet {
+  background: var(--surface); border-top: 1px solid var(--line); max-height: 46vh; overflow-y: auto; overscroll-behavior: contain;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 12px 14px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.stocks { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin-inline: -4px; padding: 2px 4px 4px; scroll-snap-type: x proximity; }
+.stocks::-webkit-scrollbar { display: none; }
+.stock {
+  flex: 0 0 auto; scroll-snap-align: start; text-align: left; border: 1px solid var(--line); background: var(--raised);
+  border-radius: var(--r); padding: 7px 10px 8px; min-width: 112px; display: flex; flex-direction: column; gap: 2px;
+}
+.stock .code { font-family: var(--font-data); font-size: 10px; letter-spacing: 0.08em; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+.stock .nm { font-weight: 600; font-size: 14px; white-space: nowrap; }
+.stock[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--raised)); }
+.stock[aria-pressed="true"] .code { color: var(--accent); }
+
+.tabs { display: flex; gap: 4px; background: var(--bg); border-radius: 999px; padding: 3px; }
+.tab { flex: 1; border: 0; background: transparent; border-radius: 999px; padding: 7px 4px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.tab[aria-selected="true"] { background: var(--raised); color: var(--fg); }
+.panel { display: grid; grid-template-columns: 1fr; gap: 10px; }
+@media (min-width: 640px) { .panel { grid-template-columns: 1fr 1fr; column-gap: 24px; } }
+.row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 10px; min-width: 0; }
+.row label { font-size: 13px; color: var(--muted); }
+.row output { font-family: var(--font-data); font-size: 12px; font-variant-numeric: tabular-nums; color: var(--fg); }
+.row input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); height: 26px; margin: 0; }
+.row select { grid-column: 1 / -1; background: var(--raised); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; width: 100%; }
+.toggle { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--muted); }
+.toggle input { width: 20px; height: 20px; accent-color: var(--accent); }
+.note { font-size: 12px; color: var(--muted); line-height: 1.45; }
+.note a { color: var(--fg); }
+.foot { font-size: 11px; color: var(--muted); line-height: 1.5; border-top: 1px solid var(--line); padding-top: 10px; }
+.foot a { color: var(--muted); }
+.result { position: fixed; inset: 0; background: rgba(10,9,8,0.94); display: flex; flex-direction: column; gap: 12px; align-items: center; justify-content: center; z-index: 10;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-bottom, 0px)); }
+.result img { max-width: 100%; max-height: 70vh; border-radius: 4px; }
+.result p { margin: 0; font-size: 13px; color: var(--muted); text-align: center; max-width: 36ch; }
+.result .actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+@media (prefers-reduced-motion: reduce) { .progress i { transition: none; } }
+</style>
+
+<header class="top">
+  <div class="brand">
+    <b>Spektra Pocket</b>
+    <small id="lineage">spektrafilm · expose → develop → print → scan</small>
+  </div>
+  <label class="btn" for="file" id="openBtn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3.5"/></svg>
+    Photo
+  </label>
+  <input id="file" type="file" accept="image/*" hidden>
+  <button class="btn primary" id="saveBtn" type="button">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 19h14"/></svg>
+    Save
+  </button>
+</header>
+
+<main class="viewer" id="viewer" aria-label="Photo preview. Press and hold to see the original.">
+  <div class="progress"><i id="bar"></i></div>
+  <canvas id="view"></canvas>
+  <div class="hud" id="hud"><span class="tag" id="hudSample">Sample scene</span><span class="tag" id="hudStatus">Loading…</span></div>
+  <div class="viewer-tools">
+    <button class="chip-btn" id="loupeBtn" type="button" aria-pressed="false" title="Show grain at full resolution">1:1</button>
+    <button class="chip-btn" id="compareBtn" type="button" title="Hold to see the original">Before</button>
+  </div>
+</main>
+
+<section class="sheet" aria-label="Film controls">
+  <div class="stocks" id="stocks" role="group" aria-label="Film stock"></div>
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tab-camera" aria-selected="true" data-panel="camera" type="button">Camera</button>
+    <button class="tab" role="tab" id="tab-film" aria-selected="false" data-panel="film" type="button">Film</button>
+    <button class="tab" role="tab" id="tab-print" aria-selected="false" data-panel="print" type="button">Print</button>
+    <button class="tab" role="tab" id="tab-scan" aria-selected="false" data-panel="scan" type="button">Scan</button>
+  </div>
+
+  <div class="panel" id="panel-camera" role="tabpanel">
+    <div class="row"><label for="ev">Exposure</label><output id="ev-out"></output><input id="ev" type="range" min="-4" max="4" step="0.333333" value="0"></div>
+    <label class="toggle">Auto exposure (center-weighted)<input id="auto" type="checkbox" checked></label>
+    <div class="row"><label for="format">Film format</label><select id="format"></select></div>
+    <p class="note">A smaller format enlarges the frame more, so grain and halation grow. Format sets how many microns each pixel covers.</p>
+  </div>
+
+  <div class="panel" id="panel-film" role="tabpanel" hidden>
+    <div class="row"><label for="grain">Grain</label><output id="grain-out"></output><input id="grain" type="range" min="0" max="2" step="0.05" value="1"></div>
+    <div class="row"><label for="gsize">Grain particle size</label><output id="gsize-out"></output><input id="gsize" type="range" min="0.25" max="4" step="0.05" value="1"></div>
+    <div class="row"><label for="halation">Halation</label><output id="halation-out"></output><input id="halation" type="range" min="0" max="4" step="0.1" value="1"></div>
+    <div class="row"><label for="couplers">DIR couplers</label><output id="couplers-out"></output><input id="couplers" type="range" min="0" max="2" step="0.05" value="1"></div>
+    <p class="note">Couplers add the edge contrast and colour separation a developer gives. Grain is grown per dye sublayer from the stock's measured curves.</p>
+  </div>
+
+  <div class="panel" id="panel-print" role="tabpanel" hidden>
+    <div class="row"><label for="paper">Print paper</label><select id="paper"></select></div>
+    <div class="row"><label for="pexp">Print exposure</label><output id="pexp-out"></output><input id="pexp" type="range" min="-2" max="2" step="0.05" value="0"></div>
+    <div class="row"><label for="yshift">Yellow filter</label><output id="yshift-out"></output><input id="yshift" type="range" min="-40" max="40" step="1" value="0"></div>
+    <div class="row"><label for="mshift">Magenta filter</label><output id="mshift-out"></output><input id="mshift" type="range" min="-40" max="40" step="1" value="0"></div>
+    <label class="toggle">Rebalance print for exposure<input id="pcomp" type="checkbox" checked></label>
+    <p class="note" id="printNote">Filter values are Kodak CC units added to the enlarger's neutral filtration for this film and paper. More yellow makes the print bluer.</p>
+  </div>
+
+  <div class="panel" id="panel-scan" role="tabpanel" hidden>
+    <div class="row"><label for="sharpen">Scanner sharpening</label><output id="sharpen-out"></output><input id="sharpen" type="range" min="0" max="2" step="0.05" value="1"></div>
+    <label class="toggle">Glare (veiling flare on the print)<input id="glare" type="checkbox" checked></label>
+    <div class="row"><label for="maxmp">Saved size</label><select id="maxmp">
+      <option value="4">Up to 4 MP</option><option value="8">Up to 8 MP</option><option value="12" selected>Up to 12 MP</option><option value="24">Up to 24 MP (slow)</option>
+    </select></div>
+    <p class="note">Previews run at screen size, where grain averages out the way it does in a small print. Use 1:1 to check grain at full resolution.</p>
+  </div>
+
+  <p class="foot">A phone port of <a href="https://github.com/andreavolpato/spektrafilm" target="_blank" rel="noopener">spektrafilm</a> by Andrea Volpato (GPL-3.0). Film and paper data from spektrafilm profiles, CC BY-SA 4.0, resampled. Photos stay on your device.</p>
+</section>
+
+<div class="result" id="result" hidden>
+  <img id="resultImg" alt="Developed photo">
+  <p id="resultMsg"></p>
+  <div class="actions">
+    <button class="btn primary" id="resultSave" type="button">Save JPEG</button>
+    <button class="btn" id="resultClose" type="button">Done</button>
+  </div>
+</div>
+
+<!--DATA-->
+<!--ENGINE-->
+<script>
+(function () {
+  "use strict";
+  const E = window.SpektraEngine;
+  E.init(SPEKTRA_DATA);
+  const $ = (id) => document.getElementById(id);
+
+  // ------------------------------------------------------------- stocks
+  const PROCESS = (f) => f.positive ? (f.id.includes("kodachrome") ? "K-14" : "E-6") : f.use === "cine" ? "ECN-2" : "C-41";
+  const ISO = (f) => { const m = f.name.match(/(\d{2,3})\s*([DT]?)\b/); return m ? m[1] + (m[2] || "") : ""; };
+  const SHORT = (n) => n.replace(/^Kodak |^Fujifilm |^Fuji /, "");
+  const FORMATS = [
+    ["Super 8", 5.79], ["16 mm", 10.26], ["Super 16", 12.52], ["Half frame (24 × 18)", 24], ["Super 35", 24.89],
+    ["35 mm (36 × 24)", 35], ["645 (56 × 42)", 56], ["6 × 7", 70], ["4 × 5 in", 120],
+  ];
+  const state = Object.assign({}, E.DEFAULTS, { film: "kodak_portra_400", print: null, maxMP: 12 });
+  try { const saved = JSON.parse(localStorage.getItem("spektra-pocket") || "null"); if (saved) Object.assign(state, saved); } catch (e) {}
+  function persist() { try { localStorage.setItem("spektra-pocket", JSON.stringify(state)); } catch (e) {} }
+
+  const stocksEl = $("stocks");
+  for (const f of SPEKTRA_DATA.films) {
+    const b = document.createElement("button");
+    b.className = "stock"; b.type = "button"; b.dataset.id = f.id;
+    b.innerHTML = `<span class="code"><span>${PROCESS(f)}</span><span>${ISO(f)}</span></span><span class="nm"></span>`;
+    b.querySelector(".nm").textContent = SHORT(f.name);
+    b.addEventListener("click", () => { state.film = f.id; state.print = null; syncStocks(); schedule(); });
+    stocksEl.appendChild(b);
+  }
+  const paperSel = $("paper");
+  for (const p of SPEKTRA_DATA.prints) { const o = document.createElement("option"); o.value = p.id; o.textContent = p.name; paperSel.appendChild(o); }
+  paperSel.addEventListener("change", () => { state.print = paperSel.value; schedule(); });
+  const formatSel = $("format");
+  for (const [label, mm] of FORMATS) { const o = document.createElement("option"); o.value = mm; o.textContent = label; formatSel.appendChild(o); }
+  formatSel.value = String(state.formatMm);
+  formatSel.addEventListener("change", () => { state.formatMm = +formatSel.value; schedule(); });
+  $("maxmp").value = String(state.maxMP);
+  $("maxmp").addEventListener("change", () => { state.maxMP = +$("maxmp").value; persist(); });
+
+  function currentFilm() { return SPEKTRA_DATA.films.find((f) => f.id === state.film) || SPEKTRA_DATA.films[0]; }
+  function syncStocks() {
+    for (const b of stocksEl.children) b.setAttribute("aria-pressed", String(b.dataset.id === state.film));
+    const f = currentFilm();
+    paperSel.value = state.print || f.targetPrint;
+    const pos = f.positive;
+    paperSel.disabled = pos;
+    for (const id of ["pexp", "yshift", "mshift", "pcomp"]) $(id).disabled = pos;
+    $("printNote").textContent = pos
+      ? "Slide film is scanned directly, so there is no print stage."
+      : "Filter values are Kodak CC units added to the enlarger's neutral filtration for this film and paper. More yellow makes the print bluer.";
+  }
+
+  // ------------------------------------------------------------- sliders
+  const fmtEv = (v) => { v = Math.round(v * 10) / 10; return (v > 0 ? "+" : v < 0 ? "−" : "±") + Math.abs(v).toFixed(1) + " EV"; };
+  const sliders = {
+    ev: { key: "exposureEv", fmt: fmtEv },
+    grain: { key: "grainAmount", fmt: (v) => (v === 0 ? "off" : "×" + v.toFixed(2)) },
+    gsize: { key: "grainSize", fmt: (v) => (0.2 * v).toFixed(2) + " µm²" },
+    halation: { key: "halation", fmt: (v) => (v === 0 ? "off" : "×" + v.toFixed(1)) },
+    couplers: { key: "couplers", fmt: (v) => (v === 0 ? "off" : "×" + v.toFixed(2)) },
+    pexp: { key: "printStops", fmt: (v) => (v > 0 ? "+" : v < 0 ? "−" : "±") + Math.abs(v).toFixed(2) + " stop" },
+    yshift: { key: "yellowShift", fmt: (v) => (v > 0 ? "+" : v < 0 ? "−" : "±") + Math.abs(v) + " Y" },
+    mshift: { key: "magentaShift", fmt: (v) => (v > 0 ? "+" : v < 0 ? "−" : "±") + Math.abs(v) + " M" },
+    sharpen: { key: "sharpen", fmt: (v) => (v === 0 ? "off" : "×" + v.toFixed(2)) },
+  };
+  if (state.printStops === undefined) state.printStops = 0;
+  for (const [id, cfg] of Object.entries(sliders)) {
+    const el = $(id), out = $(id + "-out");
+    el.value = state[cfg.key];
+    const show = () => { out.textContent = cfg.fmt(+el.value); };
+    show();
+    el.addEventListener("input", () => { state[cfg.key] = +el.value; show(); schedule(); });
+    el.addEventListener("dblclick", () => { el.value = E.DEFAULTS[cfg.key] ?? 0; state[cfg.key] = +el.value; show(); schedule(); });
+  }
+  const toggles = { auto: "autoExposure", pcomp: "printExposureCompensation", glare: "glare" };
+  for (const [id, key] of Object.entries(toggles)) {
+    $(id).checked = !!state[key];
+    $(id).addEventListener("change", () => { state[key] = $(id).checked; schedule(); });
+  }
+  for (const t of document.querySelectorAll(".tab")) {
+    t.addEventListener("click", () => {
+      for (const u of document.querySelectorAll(".tab")) {
+        const on = u === t;
+        u.setAttribute("aria-selected", String(on));
+        $("panel-" + u.dataset.panel).hidden = !on;
+      }
+    });
+  }
+  function settings(extra) {
+    return Object.assign({}, state, { printExposure: Math.pow(2, state.printStops || 0) }, extra);
+  }
+
+  // ------------------------------------------------------------- workers
+  const engineSrc = $("spektra-data").textContent + "\n" + $("spektra-engine").textContent + `
+    SpektraEngine.init(SPEKTRA_DATA);
+    onmessage = (e) => {
+      const m = e.data;
+      const src = new Uint8ClampedArray(m.src);
+      const out = SpektraEngine.renderRect(m.plan, src, m.srcY0, m.x0, m.y0, m.x1, m.y1);
+      postMessage({ id: m.id, out: out.buffer }, [out.buffer]);
+    };`;
+  const workerUrl = URL.createObjectURL(new Blob([engineSrc], { type: "text/javascript" }));
+  const nWorkers = Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 2) - 1));
+  const pool = [];
+  let jobSeq = 0;
+  try { for (let i = 0; i < nWorkers; i++) pool.push({ w: new Worker(workerUrl), busy: false }); } catch (e) { /* main thread fallback */ }
+  const queue = [], pending = new Map();
+  function pump() {
+    for (const slot of pool) {
+      if (slot.busy || !queue.length) continue;
+      const job = queue.shift();
+      slot.busy = true;
+      pending.set(job.msg.id, { job, slot });
+      slot.w.postMessage(job.msg, [job.msg.src]);
+    }
+  }
+  for (const slot of pool) {
+    slot.w.onmessage = (e) => {
+      const p = pending.get(e.data.id); pending.delete(e.data.id);
+      slot.busy = false;
+      if (p) p.job.resolve(new Uint8ClampedArray(e.data.out));
+      pump();
+    };
+    slot.w.onerror = (e) => { e.preventDefault(); };
+  }
+  function runRect(plan, img, x0, y0, x1, y1) {
+    const ya = Math.max(0, y0 - plan.reach), yb = Math.min(img.height, y1 + plan.reach);
+    const src = img.data.slice(ya * img.width * 4, yb * img.width * 4);
+    if (!pool.length) return Promise.resolve(E.renderRect(plan, src, ya, x0, y0, x1, y1));
+    return new Promise((resolve) => {
+      queue.push({ resolve, msg: { id: ++jobSeq, plan, src: src.buffer, srcY0: ya, x0, y0, x1, y1 } });
+      pump();
+    });
+  }
+  // Render a whole image (or a rectangle of it) in row bands across the pool.
+  async function renderImage(img, s, rect, onProgress, isStale) {
+    const plan = E.plan(img.data, img.width, img.height, s);
+    const r = rect || { x0: 0, y0: 0, x1: img.width, y1: img.height };
+    const w = r.x1 - r.x0, h = r.y1 - r.y0;
+    const band = 160 * Math.max(1, Math.round(Math.min(8, h / 160 / Math.max(1, pool.length * 2))));
+    const out = new ImageData(w, h);
+    const jobs = [];
+    let done = 0;
+    for (let y = r.y0; y < r.y1; y += band) {
+      const y1 = Math.min(r.y1, y + band);
+      jobs.push(runRect(plan, img, r.x0, y, r.x1, y1).then((px) => {
+        if (isStale && isStale()) return;
+        out.data.set(px, (y - r.y0) * w * 4);
+        done += y1 - y;
+        if (onProgress) onProgress(done / h);
+      }));
+    }
+    await Promise.all(jobs);
+    return { image: out, plan };
+  }
+
+  // ------------------------------------------------------------- images
+  const view = $("view"), vctx = view.getContext("2d");
+  let full = null;      // ImageData, capped to the save size
+  let preview = null;   // ImageData at screen size
+  let isSample = true;
+  let lastOut = null, showingOriginal = false, loupe = null;
+
+  function toImageData(source, maxPixels) {
+    const sw = source.width, sh = source.height;
+    const k = Math.min(1, Math.sqrt(maxPixels / (sw * sh)));
+    const w = Math.max(1, Math.round(sw * k)), h = Math.max(1, Math.round(sh * k));
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
+    const g = c.getContext("2d"); g.imageSmoothingQuality = "high"; g.drawImage(source, 0, 0, w, h);
+    return g.getImageData(0, 0, w, h);
+  }
+  function previewPixels() {
+    const r = $("viewer").getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    return Math.max(480 * 320, Math.min(2.2e6, r.width * r.height * dpr * dpr));
+  }
+  function setSource(canvasLike, sample) {
+    isSample = sample;
+    full = toImageData(canvasLike, Math.min(24e6, state.maxMP * 1e6));
+    const c = document.createElement("canvas"); c.width = full.width; c.height = full.height;
+    c.getContext("2d").putImageData(full, 0, 0);
+    preview = toImageData(c, previewPixels());
+    $("hudSample").hidden = !sample;
+    loupe = null; $("loupeBtn").setAttribute("aria-pressed", "false"); $("viewer").classList.remove("loupe");
+    schedule(0);
+  }
+
+  // A sample scene: low sun over water, foliage, skin and a colour chart,
+  // so the first frame shows halation, grain and colour at once.
+  function sampleScene() {
+    const W = 1800, H = 1200, c = document.createElement("canvas"); c.width = W; c.height = H;
+    const g = c.getContext("2d");
+    const sky = g.createLinearGradient(0, 0, 0, H * 0.62);
+    sky.addColorStop(0, "#2f4a7a"); sky.addColorStop(0.55, "#d98a5a"); sky.addColorStop(1, "#f6c98a");
+    g.fillStyle = sky; g.fillRect(0, 0, W, H * 0.62);
+    const sun = g.createRadialGradient(W * 0.68, H * 0.5, 0, W * 0.68, H * 0.5, 260);
+    sun.addColorStop(0, "#ffffff"); sun.addColorStop(0.12, "#fff4d6"); sun.addColorStop(0.35, "rgba(255,190,120,0.55)"); sun.addColorStop(1, "rgba(255,160,100,0)");
+    g.fillStyle = sun; g.fillRect(0, 0, W, H * 0.62);
+    g.fillStyle = "#ffffff"; g.beginPath(); g.arc(W * 0.68, H * 0.5, 34, 0, Math.PI * 2); g.fill();
+    const sea = g.createLinearGradient(0, H * 0.62, 0, H);
+    sea.addColorStop(0, "#c98f6a"); sea.addColorStop(0.25, "#4f5f74"); sea.addColorStop(1, "#1d2a38");
+    g.fillStyle = sea; g.fillRect(0, H * 0.62, W, H * 0.38);
+    for (let i = 0; i < 140; i++) {
+      const y = H * 0.63 + Math.pow(i / 140, 1.6) * H * 0.37, x = W * 0.68 + Math.sin(i * 12.9898) * (30 + i * 2.2);
+      g.fillStyle = `rgba(255,${220 - i},${170 - i},${0.9 - i / 170})`; g.fillRect(x - 18 - i * 0.5, y, 36 + i, 2 + i / 40);
+    }
+    g.fillStyle = "#16201a";
+    g.beginPath(); g.moveTo(0, H * 0.5);
+    for (let x = 0; x <= W * 0.42; x += 20) g.lineTo(x, H * 0.5 - 60 * Math.sin(x / 140) - 40 * Math.sin(x / 37) - 90 * (1 - x / (W * 0.42)));
+    g.lineTo(W * 0.42, H * 0.64); g.lineTo(0, H * 0.64); g.fill();
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+    for (let i = 0; i < 900; i++) {
+      const x = rnd() * W * 0.4, y = H * 0.4 + rnd() * H * 0.24;
+      g.fillStyle = `hsl(${95 + (i % 40)}, ${35 + (i % 30)}%, ${12 + (i % 18)}%)`; g.beginPath(); g.arc(x, y, 6 + (i % 9), 0, Math.PI * 2); g.fill();
+    }
+    // portrait-ish skin tones
+    const skins = ["#f1c7a6", "#e0a989", "#c68863", "#8d5a3c", "#5c3a26"];
+    skins.forEach((col, i) => {
+      const x = 120 + i * 120, y = H * 0.76;
+      const grd = g.createRadialGradient(x - 18, y - 22, 6, x, y, 60);
+      grd.addColorStop(0, "#fff1e6"); grd.addColorStop(0.25, col); grd.addColorStop(1, "#2a1a12");
+      g.fillStyle = grd; g.beginPath(); g.ellipse(x, y, 48, 60, 0, 0, Math.PI * 2); g.fill();
+    });
+    // colour chart (ColorChecker-like sRGB values)
+    const patches = ["#735244", "#c29682", "#627a9d", "#576c43", "#8580b1", "#67bdaa", "#d67e2c", "#505ba6", "#c15a63", "#5e3c6c", "#9dbc40", "#e0a32e",
+                     "#383d96", "#469449", "#af363c", "#e7c71f", "#bb5695", "#0885a1", "#f3f3f2", "#c8c8c8", "#a0a0a0", "#7a7a79", "#555555", "#343434"];
+    const cx = W * 0.47, cy = H * 0.7, s = 64;
+    g.fillStyle = "#111"; g.fillRect(cx - 12, cy - 12, 6 * (s + 8) + 16, 4 * (s + 8) + 16);
+    patches.forEach((col, i) => { g.fillStyle = col; g.fillRect(cx + (i % 6) * (s + 8), cy + Math.floor(i / 6) * (s + 8), s, s); });
+    return c;
+  }
+
+  function draw(img) {
+    if (view.width !== img.width || view.height !== img.height) { view.width = img.width; view.height = img.height; }
+    vctx.putImageData(img, 0, 0);
+  }
+  function setStatus(text, busy) { const t = $("hudStatus"); t.textContent = text; t.classList.toggle("busy", !!busy); }
+  function setBar(f) { $("bar").style.width = f >= 1 || f <= 0 ? "0" : (f * 100).toFixed(1) + "%"; }
+
+  // ------------------------------------------------------------- render loop
+  let timer = 0, generation = 0, running = false, again = false;
+  function schedule(delay) {
+    persist(); syncStocks();
+    clearTimeout(timer);
+    timer = setTimeout(go, delay === undefined ? 90 : delay);
+  }
+  async function go() {
+    if (!preview) return;
+    if (running) { again = true; return; }
+    running = true; again = false;
+    const gen = ++generation;
+    const stale = () => gen !== generation || again;
+    const s = settings();
+    try {
+      setStatus("Developing…", true);
+      let result;
+      if (loupe) {
+        result = await renderImage(full, s, loupe.rect, setBar, stale);
+      } else {
+        result = await renderImage(preview, s, null, setBar, stale);
+      }
+      if (!stale()) {
+        lastOut = result.image;
+        if (!showingOriginal) draw(lastOut);
+        const p = result.plan;
+        const meter = s.autoExposure ? ` · meter ${fmtEv(p.autoEv)}` : "";
+        setStatus(`${SHORT(p.filmName)}${p.paperName ? " → " + SHORT(p.paperName) : " · slide"}${meter}${loupe ? " · 1:1" : ""}`);
+        $("lineage").textContent = `${p.filmName}${p.paperName ? " printed on " + p.paperName : ", scanned"} · ${(p.pixelUm).toFixed(1)} µm/px`;
+      }
+    } catch (err) {
+      setStatus("Could not develop this photo: " + (err && err.message ? err.message : err));
+    } finally {
+      setBar(0);
+      running = false;
+      if (again) go();
+    }
+  }
+
+  // ------------------------------------------------------------- interactions
+  $("file").addEventListener("change", async () => {
+    const file = $("file").files && $("file").files[0];
+    if (!file) return;
+    setStatus("Opening photo…", true);
+    try {
+      let bmp;
+      try { bmp = await createImageBitmap(file, { imageOrientation: "from-image" }); }
+      catch (e) {
+        bmp = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error("this file type can't be opened here. Try a JPEG or PNG.")); im.src = URL.createObjectURL(file); });
+      }
+      setSource(bmp, false);
+    } catch (err) {
+      setStatus("Could not open the photo: " + (err.message || err));
+    }
+    $("file").value = "";
+  });
+
+  const viewer = $("viewer");
+  function showOriginal(on) {
+    showingOriginal = on;
+    $("compareBtn").setAttribute("aria-pressed", String(on));
+    if (on) {
+      if (loupe) draw(cropOf(full, loupe.rect)); else draw(preview);
+    } else if (lastOut) draw(lastOut);
+  }
+  function cropOf(img, r) {
+    const w = r.x1 - r.x0, h = r.y1 - r.y0, out = new ImageData(w, h);
+    for (let y = 0; y < h; y++) out.data.set(img.data.subarray(((r.y0 + y) * img.width + r.x0) * 4, ((r.y0 + y) * img.width + r.x1) * 4), y * w * 4);
+    return out;
+  }
+  let holdTimer = 0, downAt = null;
+  viewer.addEventListener("pointerdown", (e) => {
+    if (e.target.closest(".viewer-tools")) return;
+    downAt = { x: e.clientX, y: e.clientY };
+    holdTimer = setTimeout(() => showOriginal(true), 220);
+  });
+  const release = (e) => {
+    clearTimeout(holdTimer);
+    if (showingOriginal) { showOriginal(false); downAt = null; return; }
+    if (downAt && loupeArmed && e && e.type === "pointerup") placeLoupe(downAt.x, downAt.y);
+    downAt = null;
+  };
+  viewer.addEventListener("pointerup", release);
+  viewer.addEventListener("pointercancel", release);
+  viewer.addEventListener("pointerleave", () => { clearTimeout(holdTimer); if (showingOriginal) showOriginal(false); });
+  const cmp = $("compareBtn");
+  cmp.addEventListener("pointerdown", (e) => { e.stopPropagation(); showOriginal(true); });
+  cmp.addEventListener("pointerup", (e) => { e.stopPropagation(); showOriginal(false); });
+  cmp.addEventListener("pointerleave", () => showingOriginal && showOriginal(false));
+  cmp.addEventListener("keydown", (e) => { if (e.key === " " || e.key === "Enter") showOriginal(true); });
+  cmp.addEventListener("keyup", () => showOriginal(false));
+
+  // 1:1 loupe: render a screen-sized crop of the full-resolution photo.
+  let loupeArmed = false;
+  function placeLoupe(clientX, clientY) {
+    const cr = view.getBoundingClientRect(), vr = viewer.getBoundingClientRect();
+    let fx = 0.5, fy = 0.5;
+    if (!loupe && clientX !== undefined && cr.width > 0) {
+      fx = Math.min(1, Math.max(0, (clientX - cr.left) / cr.width));
+      fy = Math.min(1, Math.max(0, (clientY - cr.top) / cr.height));
+    } else if (loupe) { loupe = null; $("viewer").classList.remove("loupe"); $("loupeBtn").setAttribute("aria-pressed", "false"); loupeArmed = false; schedule(0); return; }
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.min(full.width, Math.round(vr.width * dpr)), h = Math.min(full.height, Math.round(vr.height * dpr));
+    const cx = Math.round(fx * full.width), cy = Math.round(fy * full.height);
+    const x0 = Math.max(0, Math.min(full.width - w, cx - (w >> 1))), y0 = Math.max(0, Math.min(full.height - h, cy - (h >> 1)));
+    loupe = { rect: { x0, y0, x1: x0 + w, y1: y0 + h } };
+    loupeArmed = false;
+    $("viewer").classList.add("loupe");
+    $("loupeBtn").setAttribute("aria-pressed", "true");
+    schedule(0);
+  }
+  $("loupeBtn").addEventListener("click", () => {
+    if (loupe) { placeLoupe(); return; }
+    if (!loupeArmed) { loupeArmed = true; $("loupeBtn").setAttribute("aria-pressed", "true"); setStatus("Tap the spot to inspect at 1:1"); return; }
+    loupeArmed = false; $("loupeBtn").setAttribute("aria-pressed", "false");
+  });
+
+  // ------------------------------------------------------------- save
+  let savedBlob = null, savedName = "";
+  $("saveBtn").addEventListener("click", async () => {
+    if (!full) return;
+    $("saveBtn").disabled = true;
+    try {
+      const s = settings();
+      const k = Math.min(1, Math.sqrt((state.maxMP * 1e6) / (full.width * full.height)));
+      let img = full;
+      if (k < 1) {
+        const c = document.createElement("canvas"); c.width = full.width; c.height = full.height; c.getContext("2d").putImageData(full, 0, 0);
+        img = toImageData(c, state.maxMP * 1e6);
+      }
+      setStatus(`Developing ${(img.width * img.height / 1e6).toFixed(1)} MP…`, true);
+      const t0 = performance.now();
+      const { image, plan } = await renderImage(img, s, null, setBar);
+      const c = document.createElement("canvas"); c.width = image.width; c.height = image.height;
+      c.getContext("2d").putImageData(image, 0, 0);
+      savedBlob = await new Promise((res) => c.toBlob(res, "image/jpeg", 0.93));
+      const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
+      savedName = `${state.film}${plan.paperId ? "_" + plan.paperId : ""}_${stamp}.jpg`;
+      $("resultImg").src = URL.createObjectURL(savedBlob);
+      $("resultMsg").textContent = `${image.width} × ${image.height}, developed in ${((performance.now() - t0) / 1000).toFixed(1)} s. If saving is blocked here, press and hold the photo to save it.`;
+      $("result").hidden = false;
+      setStatus("Ready");
+    } catch (err) {
+      setStatus("Could not save: " + (err.message || err));
+    } finally {
+      setBar(0);
+      $("saveBtn").disabled = false;
+    }
+  });
+  let downloads = null;
+  if (window.claude && window.claude.use) window.claude.use("downloads").then((d) => { downloads = d; }).catch(() => {});
+  $("resultSave").addEventListener("click", async () => {
+    if (!savedBlob) return;
+    if (downloads) {
+      try { await downloads.save({ filename: savedName, data: savedBlob }); $("resultMsg").textContent = "Saved."; return; }
+      catch (err) {
+        if (err && err.code === "declined") { $("resultMsg").textContent = "Save cancelled."; return; }
+      }
+    }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(savedBlob); a.download = savedName; document.body.appendChild(a); a.click(); a.remove();
+    $("resultMsg").textContent = "If nothing downloaded, press and hold the photo to save it.";
+  });
+  $("resultClose").addEventListener("click", () => { $("result").hidden = true; });
+
+  let resizeT = 0;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeT);
+    resizeT = setTimeout(() => {
+      if (!full || loupe) return;
+      const c = document.createElement("canvas"); c.width = full.width; c.height = full.height; c.getContext("2d").putImageData(full, 0, 0);
+      preview = toImageData(c, previewPixels()); schedule(0);
+    }, 250);
+  });
+
+  syncStocks();
+  setSource(sampleScene(), true);
+})();
+</script>
