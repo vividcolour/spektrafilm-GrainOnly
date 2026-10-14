@@ -1,1 +1,0 @@
-"""GUI-focused tests and shared helpers."""

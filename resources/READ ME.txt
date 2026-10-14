@@ -1,0 +1,52 @@
+Spektra RMS Grain
+Film grain OFX plugin for DaVinci Resolve (macOS)
+
+
+INSTALL
+
+1. Quit DaVinci Resolve.
+2. Run "Install Spektra RMS Grain.pkg". It installs to /Library/OFX/Plugins.
+3. In Resolve's Color page, find it under OpenFX > VividColour >
+   Spektra RMS Grain. Put it on its own node near the end of the tree,
+   after your look.
+
+The installer isn't signed. If macOS won't open it, right-click the pkg and
+choose Open.
+
+
+UNINSTALL
+
+Run "Uninstall.command" (it asks for your password), or delete
+/Library/OFX/Plugins/SpektraRMSGrain.ofx.bundle.
+
+
+CONTROLS
+
+Film Stock - 20 camera stocks from spektrafilm. Sets the curves and the RMS
+  granularity.
+Film Format - Super 8 up to IMAX 15/70. Smaller formats give bigger grain.
+Custom RMS - turn on to type your own RMS value instead of the stock's.
+Exposure Offset - where the image sits on the stock's curve. Overexposing
+  gives finer grain, underexposing coarser.
+
+Grain Amount - 1.0 is the stock's data sheet strength.
+Grain Aspect Ratio - 1.0 is round. Above 1 stretches the grain horizontally,
+  below 1 vertically. Overall strength stays the same.
+Grain Size, Softness, Saturation (0 = mono), Animate, Seed.
+
+Colour Space > Input - the colour space coming into the node. Defaults to
+  DaVinci Wide Gamut / Intermediate.
+Colour Space > Output - leave on Match Input and the image is untouched apart
+  from the grain. Pick a space if you want the node to convert.
+
+View - final image, or the grain on its own over mid grey.
+
+
+CREDITS
+
+The grain model is a port of the grain from spektrafilm by Andrea Volpato
+(https://github.com/andreavolpato/spektrafilm). Film profile data is
+CC BY-SA 4.0. The plugin is GPL-3.0, source at
+https://github.com/vividcolour/spektrafilm-GrainOnly
+
+RMS values for stocks Kodak only rates by Print Grain Index are approximate.

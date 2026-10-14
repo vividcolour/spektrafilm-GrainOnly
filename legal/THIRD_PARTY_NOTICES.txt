@@ -1,0 +1,27 @@
+Spektra RMS Grain: third-party notices
+
+spektrafilm
+  https://github.com/andreavolpato/spektrafilm
+  Copyright (c) Andrea Volpato.
+  Film modeling inspired by spektrafilm: the grain model in this plugin is a
+  C++/Metal port of spektrafilm's sublayer particle grain
+  (spektrafilm/model/grain.py). spektrafilm code is licensed under the GNU
+  General Public License v3; this plugin is therefore also GPL-3.0 (see
+  LICENSE.txt).
+
+  Film stock data (characteristic and sublayer density curves) is taken from
+  spektrafilm's JSON profiles, "spektrafilm profile by Andrea Volpato,
+  licensed under CC BY-SA 4.0" (https://creativecommons.org/licenses/by-sa/4.0/).
+  The data was resampled into C arrays (src/StockData.h) by vividcolour; that
+  derived data is shared under the same CC BY-SA 4.0 license. The original
+  profiles are included unmodified in tools/profiles, with
+  SPEKTRAFILM_LICENSE.txt at the root of this repository.
+
+OpenFX
+  https://github.com/AcademySoftwareFoundation/openfx
+  OpenFX API headers, BSD 3-Clause License (see OPENFX_LICENSE.txt).
+
+RMS granularity targets
+  Per-stock diffuse RMS granularity values are taken from manufacturer data
+  sheets where published (RMS); for stocks rated only by Print Grain Index
+  they are approximate equivalents chosen by the plugin author.
